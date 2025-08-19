@@ -1,0 +1,203 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Roaster {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  domain      String?  @unique
+  website     String?
+  location    String?
+  city        String?
+  region      String?
+  country     String?
+  specialty   String?
+  description String?
+  logoUrl     String?
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  coffees      Coffee[]
+  userScans    UserScan[]
+  aliases      RoasterAlias[]
+  reviews      RoasterReview[]
+
+  @@map("roasters")
+}
+
+model RoasterAlias {
+  id        Int     @id @default(autoincrement())
+  roasterId Int
+  alias     String
+  roaster   Roaster @relation(fields: [roasterId], references: [id], onDelete: Cascade)
+
+  @@unique([roasterId, alias])
+  @@map("roaster_aliases")
+}
+
+model Coffee {
+  id               Int      @id @default(autoincrement())
+  roasterId        Int
+  name             String
+  description      String?
+  origin           String?
+  region           String?
+  farm             String?
+  varietal         String[]
+  processingMethod String?
+  roastLevel       String?
+  flavorNotes      String[]
+  altitude         Int?
+  harvestYear      Int?
+  price            Decimal? @db.Decimal(10, 2)
+  weightGrams      Int?
+  imageUrl         String?
+  available        Boolean  @default(true)
+  featured         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  roaster         Roaster           @relation(fields: [roasterId], references: [id], onDelete: Cascade)
+  scannedCoffees  ScannedCoffee[]
+  recommendations Recommendation[]
+  reviews         CoffeeReview[]
+
+  @@index([roasterId])
+  @@index([roastLevel])
+  @@index([origin])
+  @@index([available])
+  @@map("coffees")
+}
+
+model UserScan {
+  id                Int       @id @default(autoincrement())
+  imageUrl          String?
+  originalFilename  String?
+  imageWidth        Int?
+  imageHeight       Int?
+  processingMethod  String    // "vision", "ocr", "hybrid"
+  confidenceScore   Decimal?  @db.Decimal(3, 2)
+  processingTimeMs  Int?
+  extractedData     Json?     // Store raw extraction results
+  roasterId         Int?
+  userFeedback      Json?     // User corrections and ratings
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime  @default(now())
+
+  // Relations
+  roaster          Roaster?         @relation(fields: [roasterId], references: [id])
+  scannedCoffee    ScannedCoffee?
+  recommendations  Recommendation[]
+
+  @@index([createdAt])
+  @@index([roasterId])
+  @@index([processingMethod])
+  @@map("user_scans")
+}
+
+model ScannedCoffee {
+  id                Int      @id @default(autoincrement())
+  scanId            Int      @unique
+  coffeeId          Int?
+  extractedName     String?
+  extractedOrigin   String?
+  extractedRoaster  String?
+  extractedRoast    String?
+  extractedNotes    String[]
+  extractedPrice    String?
+  extractedWeight   String?
+  matchConfidence   Decimal? @db.Decimal(3, 2)
+  userConfirmed     Boolean? // User feedback on accuracy
+  createdAt         DateTime @default(now())
+
+  // Relations
+  scan   UserScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  coffee Coffee?  @relation(fields: [coffeeId], references: [id])
+
+  @@index([coffeeId])
+  @@map("scanned_coffees")
+}
+
+model Recommendation {
+  id                    Int      @id @default(autoincrement())
+  scanId                Int
+  recommendedCoffeeId   Int
+  similarityScore       Decimal  @db.Decimal(3, 2)
+  recommendationType    String   // "content", "collaborative", "hybrid"
+  reasonDescription     String?
+  userRating           Int?     // 1-5 stars
+  userClicked          Boolean  @default(false)
+  createdAt            DateTime @default(now())
+
+  // Relations
+  scan             UserScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  recommendedCoffee Coffee  @relation(fields: [recommendedCoffeeId], references: [id])
+
+  @@index([scanId])
+  @@index([recommendedCoffeeId])
+  @@index([userRating])
+  @@map("recommendations")
+}
+
+model CoffeeReview {
+  id           Int      @id @default(autoincrement())
+  coffeeId     Int
+  rating       Int      // 1-5 stars
+  brewMethod   String?
+  grindSize    String?
+  review       String?
+  flavorNotes  String[]
+  wouldBuyAgain Boolean?
+  ipAddress    String?
+  createdAt    DateTime @default(now())
+
+  // Relations
+  coffee Coffee @relation(fields: [coffeeId], references: [id], onDelete: Cascade)
+
+  @@index([coffeeId])
+  @@index([rating])
+  @@map("coffee_reviews")
+}
+
+model RoasterReview {
+  id         Int      @id @default(autoincrement())
+  roasterId  Int
+  rating     Int      // 1-5 stars
+  review     String?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  // Relations
+  roaster Roaster @relation(fields: [roasterId], references: [id], onDelete: Cascade)
+
+  @@index([roasterId])
+  @@index([rating])
+  @@map("roaster_reviews")
+}
+
+// Analytics and Usage Tracking
+model Analytics {
+  id            Int      @id @default(autoincrement())
+  eventType     String   // "scan", "recommendation_click", "feedback", etc.
+  eventData     Json?
+  ipAddress     String?
+  userAgent     String?
+  referrer      String?
+  createdAt     DateTime @default(now())
+
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("analytics")
+}
