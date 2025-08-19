@@ -72,23 +72,63 @@ export async function POST(request: NextRequest) {
     // Call OpenAI Vision API
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
-      max_tokens: 500,
+      max_tokens: 800,
       messages: [
         {
           role: 'user',
           content: [
             {
               type: 'text',
-              text: `Analyze this coffee packaging image and extract coffee information. Look for:
-- Roaster name (company/brand)
-- Product name (specific coffee name)
-- Origin (country/region)
-- Roast level (light, medium, dark, etc.)
-- Flavor notes or tasting notes
-- Processing method (washed, natural, etc.)
-- Any other visible details
+              text: `Analyze this coffee packaging image and extract comprehensive coffee information. Look for:
 
-Return ONLY valid JSON (no markdown): {"roaster": "...", "productName": "...", "origin": "...", "roastLevel": "...", "flavorNotes": ["..."], "processingMethod": "...", "altitude": null, "weight": "...", "price": "..."}`
+ROASTER INFORMATION:
+- Roaster name (company/brand)
+- Roaster location/country (where the company is based)
+
+COFFEE DETAILS:
+- Product name (specific coffee name)
+- Bean origin (country where beans were grown)
+- Specific region/farm/estate within the origin country
+- Varietal/cultivar (e.g., Bourbon, Typica, Geisha)
+- Processing method (washed, natural, honey, semi-washed)
+- Roast level (light, medium, dark, etc.)
+- Altitude/elevation of farm
+- Harvest year/crop year
+
+FLAVOR & BREWING:
+- Flavor notes or tasting notes (chocolate, citrus, etc.)
+- Brewing recommendations (espresso, pour-over, french press)
+- Grind recommendations
+- Weight/package size
+- Price (if visible)
+
+ADDITIONAL INFO:
+- Certifications (organic, fair trade, direct trade)
+- Roast date (if visible)
+- Best by date
+- Any special processing notes
+
+Return ONLY valid JSON with detailed information:
+{
+  "roaster": "Company Name",
+  "roasterCountry": "Country where roaster is located",
+  "productName": "Specific coffee name",
+  "origin": "Bean origin country",
+  "region": "Specific region/farm/estate",
+  "varietal": ["Bean varieties"],
+  "processingMethod": "Processing type",
+  "roastLevel": "Roast level",
+  "flavorNotes": ["Flavor notes"],
+  "altitude": "elevation in meters",
+  "harvestYear": "year",
+  "brewRecommendations": ["Brewing methods"],
+  "grindRecommendation": "Grind type",
+  "weight": "Package size",
+  "price": "Price if visible",
+  "certifications": ["Any certifications"],
+  "roastDate": "Date if visible",
+  "additionalNotes": "Any special notes"
+}`
             },
             {
               type: 'image_url',
@@ -114,10 +154,22 @@ Return ONLY valid JSON (no markdown): {"roaster": "...", "productName": "...", "
       console.error('JSON parse error:', parseError)
       extraction = {
         roaster: 'Unable to extract',
+        roasterCountry: 'Unable to extract',
         productName: 'Unable to extract', 
         origin: 'Unable to extract',
+        region: 'Unable to extract',
         roastLevel: 'Unable to extract',
-        flavorNotes: []
+        flavorNotes: [],
+        brewRecommendations: [],
+        varietal: [],
+        processingMethod: 'Unable to extract',
+        altitude: null,
+        harvestYear: null,
+        weight: null,
+        price: null,
+        certifications: [],
+        grindRecommendation: null,
+        additionalNotes: null
       }
     }
 

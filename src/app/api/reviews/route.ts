@@ -206,8 +206,9 @@ async function scrapeProductPage(url: string) {
 
     const productInfo = await page.evaluate(() => {
       const pageText = document.body.innerText.toLowerCase();
+      const fullText = document.body.innerText; // Keep original case for extraction
       
-      // Specific patterns for Kicking Horse Coffee
+      // Review patterns
       const reviewPatterns = [
         /(\d+)\s+reviews?(\s|$)/i,
         /(\d+)\s+customer\s+reviews?/i,
@@ -222,17 +223,49 @@ async function scrapeProductPage(url: string) {
         /rating:\s*(\d+\.?\d*)/i
       ];
       
+      // Enhanced extraction patterns
+      const brewingPatterns = [
+        /espresso/i,
+        /pour\s*over/i,
+        /french\s*press/i,
+        /drip/i,
+        /aeropress/i,
+        /chemex/i,
+        /v60/i,
+        /cold\s*brew/i
+      ];
+
+      const originPatterns = [
+        /origin[:\s]+([a-zA-Z\s,]+)/i,
+        /grown\s+in[:\s]+([a-zA-Z\s,]+)/i,
+        /from[:\s]+([a-zA-Z\s,]+)/i,
+        /country[:\s]+([a-zA-Z\s,]+)/i
+      ];
+
+      const processPatterns = [
+        /(washed|natural|honey|semi-washed|wet|dry|pulped natural)/i
+      ];
+
+      const altitudePatterns = [
+        /(\d+)\s*(?:m|meters|feet|ft)?\s*(?:above\s*sea\s*level|elevation|altitude)/i,
+        /(?:altitude|elevation)[:\s]+(\d+)/i
+      ];
+
       let totalReviews = 0;
       let averageRating = 0;
       let matchedReviewText = '';
       let matchedRatingText = '';
+      let brewingMethods = [];
+      let detailedOrigin = '';
+      let processingMethod = '';
+      let altitude = null;
       
       // Find review count
       for (const pattern of reviewPatterns) {
         const matches = [...pageText.matchAll(new RegExp(pattern.source, 'gi'))];
         for (const match of matches) {
           const reviewCount = parseInt(match[1]);
-          if (reviewCount > 0 && reviewCount < 500) { // Realistic range
+          if (reviewCount > 0 && reviewCount < 500) {
             totalReviews = reviewCount;
             matchedReviewText = match[0];
             console.log(`Found reviews: ${totalReviews} from "${matchedReviewText}"`);
@@ -255,6 +288,40 @@ async function scrapeProductPage(url: string) {
           }
         }
       }
+
+      // Find brewing methods
+      brewingPatterns.forEach(pattern => {
+        if (pattern.test(fullText)) {
+          const match = fullText.match(pattern);
+          if (match) {
+            brewingMethods.push(match[0]);
+          }
+        }
+      });
+
+      // Find detailed origin
+      for (const pattern of originPatterns) {
+        const match = fullText.match(pattern);
+        if (match && match[1]) {
+          detailedOrigin = match[1].trim();
+          break;
+        }
+      }
+
+      // Find processing method
+      const processMatch = fullText.match(processPatterns[0]);
+      if (processMatch) {
+        processingMethod = processMatch[1];
+      }
+
+      // Find altitude
+      for (const pattern of altitudePatterns) {
+        const match = fullText.match(pattern);
+        if (match && match[1]) {
+          altitude = parseInt(match[1]);
+          break;
+        }
+      }
       
       const title = document.title;
       const priceMatch = pageText.match(/\$\d+\.?\d*/);
@@ -267,6 +334,10 @@ async function scrapeProductPage(url: string) {
         averageRating,
         matchedReviewText,
         matchedRatingText,
+        brewingMethods: brewingMethods.length > 0 ? brewingMethods : null,
+        detailedOrigin: detailedOrigin || null,
+        processingMethod: processingMethod || null,
+        altitude: altitude,
         url: window.location.href
       };
     });
