@@ -1,54 +1,75 @@
-﻿'use client'
+﻿// src/app/page.tsx - Enhanced version with review functionality
+'use client'
 
 import { useState } from 'react'
-import ImageUploader from '../components/ImageUploader'
-import ReviewsSection from '../components/ReviewsSection'
+import ImageUploader from '@/components/ImageUploader'
+import ScanResults from '@/components/ScanResults'
 
-interface ScanResult {
-  id: string
-  extraction: {
-    roaster: string
-    productName: string
-    origin?: string
-    roastLevel?: string
-    flavorNotes: string[]
-    weight?: string
-    processingMethod?: string
-    certifications?: string[]
-    // ... other extraction fields
-  }
-  reviews?: {
-    rating?: number
-    averageRating?: number
-    totalReviews?: number
-    recentReviews?: Array<{
-      rating: number
-      text: string
-      date: string
-    }>
-    source?: string
-    lastUpdated?: string
-  }
-  confidence: number
-  processingMethod: string
-  processingTime: number
+interface CoffeeExtraction {
+  roaster?: string;
+  productName?: string;
+  origin?: string;
+  region?: string;
+  farm?: string;
+  varietal?: string[];
+  processingMethod?: string;
+  roastLevel?: string;
+  flavorNotes?: string[];
+  altitude?: number;
+  harvestYear?: number;
+  price?: string;
+  weight?: string;
+  brewRecommendations?: string[];
+}
+
+interface ReviewSummary {
+  totalReviews: number;
+  averageRating: number;
+  ratingDistribution: {
+    5: number;
+    4: number;
+    3: number;
+    2: number;
+    1: number;
+  };
+  recentReviews: any[];
+  productPage?: {
+    url: string;
+    title: string;
+    description?: string;
+    price?: string;
+    availability?: string;
+    source: string;
+  };
+}
+
+interface EnhancedScanResult {
+  id: string;
+  extraction: CoffeeExtraction;
+  confidence: number;
+  processingMethod: 'vision' | 'ocr' | 'hybrid';
+  processingTime: number;
+  imageUrl?: string;
+  productSearched?: boolean;
+  productFound?: boolean;
+  reviews?: ReviewSummary;
 }
 
 export default function HomePage() {
-  const [file, setFile] = useState<File | null>(null)
   const [isScanning, setIsScanning] = useState(false)
-  const [result, setResult] = useState<ScanResult | null>(null)
+  const [result, setResult] = useState<EnhancedScanResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [includeReviews, setIncludeReviews] = useState(true)
 
-  const handleScan = async () => {
-    if (!file) return
-
+  const handleImageSelect = async (file: File) => {
     setIsScanning(true)
     setError(null)
+    setResult(null)
 
     try {
       const formData = new FormData()
       formData.append('image', file)
+      formData.append('includeReviews', includeReviews.toString())
 
       const response = await fetch('/api/scan', {
         method: 'POST',
@@ -59,12 +80,10 @@ export default function HomePage() {
 
       if (data.success) {
         setResult(data.data)
-        console.log('Scan result:', data.data)
       } else {
-        setError(data.error || 'Scan failed')
+        setError(data.error || 'Scanning failed')
       }
     } catch (err) {
-      console.error('Scan error:', err)
       setError('Network error occurred')
     } finally {
       setIsScanning(false)
@@ -72,216 +91,160 @@ export default function HomePage() {
   }
 
   const reset = () => {
-    setFile(null)
     setResult(null)
     setError(null)
+    setIsScanning(false)
+  }
+
+  const handleFeedback = async (feedback: any) => {
+    // You can implement feedback submission to your backend here
+    console.log('Feedback received:', feedback)
+    // Example: await fetch('/api/feedback', { method: 'POST', body: JSON.stringify(feedback) })
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-coffee-50 to-coffee-100 p-8">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-coffee-50 to-coffee-100">
+      <div className="container mx-auto px-4 py-8">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-coffee-900 mb-4">
             Coffee Scanner
           </h1>
-          <p className="text-lg text-coffee-600">
-            Discover your coffee's story with AI-powered analysis
+          <p className="text-xl text-coffee-600 max-w-2xl mx-auto">
+            Upload a photo of your coffee bag to instantly identify the roaster, origin, flavor notes, and find customer reviews.
           </p>
         </div>
-        
-        {/* Upload Section */}
-        {!file && !result && (
-          <div className="glass rounded-2xl p-8 mb-8">
-            <ImageUploader onImageSelect={setFile} />
+
+        {!result && !isScanning && (
+          <div className="max-w-2xl mx-auto">
+            {/* Options Section */}
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+              <h3 className="text-lg font-semibold text-coffee-900 mb-4">Scan Options</h3>
+              <div className="space-y-4">
+                <label className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={includeReviews}
+                    onChange={(e) => setIncludeReviews(e.target.checked)}
+                    className="w-4 h-4 text-coffee-600 border-coffee-300 rounded focus:ring-coffee-500"
+                  />
+                  <div>
+                    <span className="font-medium text-coffee-900">Find Reviews</span>
+                    <p className="text-sm text-coffee-600">
+                      Search for customer reviews and ratings for this coffee
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <ImageUploader onImageSelect={handleImageSelect} isProcessing={isScanning} />
           </div>
         )}
 
-        {/* Scanning Section */}
-        {file && !result && (
-          <div className="glass rounded-2xl p-8 mb-8">
-            <div className="text-center">
-              <div className="mb-6">
-                <div className="w-24 h-24 mx-auto bg-coffee-100 rounded-lg flex items-center justify-center mb-4">
-                  <svg className="w-12 h-12 text-coffee-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
+        {isScanning && (
+          <div className="max-w-md mx-auto text-center">
+            <div className="bg-white rounded-lg shadow-sm p-8">
+              <div className="coffee-loader mx-auto mb-4"></div>
+              <h3 className="text-lg font-semibold text-coffee-900 mb-2">
+                Analyzing Coffee...
+              </h3>
+              <p className="text-coffee-600">
+                {includeReviews 
+                  ? 'Extracting information and searching for reviews...' 
+                  : 'Extracting coffee information...'
+                }
+              </p>
+              <div className="mt-6 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-coffee-600">Processing image</span>
+                  <span className="text-green-600">✓</span>
                 </div>
-                <h3 className="text-xl font-semibold text-coffee-900 mb-2">
-                  {file.name}
-                </h3>
-                <p className="text-coffee-600 mb-6">
-                  Ready to analyze your coffee
-                </p>
-              </div>
-              
-              <div className="flex justify-center space-x-4">
-                <button 
-                  onClick={handleScan}
-                  disabled={isScanning}
-                  className="scan-button flex items-center space-x-2"
-                >
-                  {isScanning ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      <span>Analyzing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span>Scan Coffee</span>
-                    </>
-                  )}
-                </button>
-                
-                <button 
-                  onClick={reset}
-                  className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold rounded-xl transition-colors"
-                >
-                  Cancel
-                </button>
+                <div className="flex justify-between text-sm">
+                  <span className="text-coffee-600">Extracting coffee details</span>
+                  <div className="coffee-loader w-3 h-3"></div>
+                </div>
+                {includeReviews && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-coffee-600">Finding reviews</span>
+                    <div className="coffee-loader w-3 h-3"></div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* Results Section */}
         {result && (
-          <div className="space-y-8">
-            {/* Main Coffee Information */}
-            <div className="glass rounded-2xl p-8">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-3xl font-bold text-coffee-900">
-                  Coffee Identified!
-                </h2>
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm text-coffee-600">Confidence:</span>
-                  <span className="px-3 py-1 bg-coffee-100 text-coffee-800 rounded-full text-sm font-medium">
-                    {Math.round(result.confidence * 100)}%
-                  </span>
-                </div>
-              </div>
-
-              {/* Coffee Details Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-coffee-900 mb-2">
-                      Basic Information
-                    </h3>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-coffee-600">Roaster:</span>
-                        <span className="font-medium text-coffee-900">{result.extraction.roaster}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-coffee-600">Coffee:</span>
-                        <span className="font-medium text-coffee-900">{result.extraction.productName}</span>
-                      </div>
-                      {result.extraction.origin && (
-                        <div className="flex justify-between">
-                          <span className="text-coffee-600">Origin:</span>
-                          <span className="font-medium text-coffee-900">{result.extraction.origin}</span>
-                        </div>
-                      )}
-                      {result.extraction.roastLevel && (
-                        <div className="flex justify-between">
-                          <span className="text-coffee-600">Roast Level:</span>
-                          <span className="font-medium text-coffee-900 capitalize">{result.extraction.roastLevel}</span>
-                        </div>
-                      )}
-                      {result.extraction.weight && (
-                        <div className="flex justify-between">
-                          <span className="text-coffee-600">Weight:</span>
-                          <span className="font-medium text-coffee-900">{result.extraction.weight}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {result.extraction.certifications && result.extraction.certifications.length > 0 && (
-                    <div>
-                      <h4 className="text-md font-medium text-coffee-800 mb-2">Certifications</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {result.extraction.certifications.map((cert, index) => (
-                          <span key={index} className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                            {cert}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-4">
-                  {result.extraction.flavorNotes && result.extraction.flavorNotes.length > 0 && (
-                    <div>
-                      <h4 className="text-md font-medium text-coffee-800 mb-2">Flavor Notes</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {result.extraction.flavorNotes.map((note, index) => (
-                          <span key={index} className="px-3 py-1 bg-coffee-100 text-coffee-800 text-sm rounded-full">
-                            {note}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div>
-                    <h4 className="text-md font-medium text-coffee-800 mb-2">Processing Info</h4>
-                    <div className="space-y-1 text-sm">
-                      <p><span className="text-coffee-600">Method:</span> {result.processingMethod}</p>
-                      <p><span className="text-coffee-600">Time:</span> {result.processingTime}ms</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Reviews Section */}
-            <ReviewsSection 
-              reviews={result.reviews}
-              roaster={result.extraction.roaster}
-              productName={result.extraction.productName}
+          <div className="max-w-4xl mx-auto">
+            <ScanResults 
+              result={result} 
+              onNewScan={reset}
+              onFeedback={handleFeedback}
             />
+          </div>
+        )}
 
-            {/* Action Buttons */}
-            <div className="text-center">
+        {error && (
+          <div className="max-w-md mx-auto">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+              <div className="text-red-600 mb-2">
+                <svg className="w-8 h-8 mx-auto" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-red-900 mb-2">
+                Scan Failed
+              </h3>
+              <p className="text-red-700 mb-4">{error}</p>
               <button 
                 onClick={reset}
-                className="scan-button"
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
               >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Scan Another Coffee
+                Try Again
               </button>
             </div>
           </div>
         )}
 
-        {/* Error Section */}
-        {error && (
-          <div className="glass rounded-2xl p-6 border-l-4 border-red-500">
-            <div className="flex items-center">
-              <svg className="w-6 h-6 text-red-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <h3 className="text-lg font-semibold text-red-900 mb-1">
-                  Scan Failed
-                </h3>
-                <p className="text-red-700">{error}</p>
-                <button 
-                  onClick={reset}
-                  className="mt-2 text-red-600 hover:text-red-800 text-sm font-medium"
-                >
-                  Try again
-                </button>
+        {/* Feature Info Section */}
+        {!result && !isScanning && (
+          <div className="max-w-4xl mx-auto mt-16">
+            <div className="grid md:grid-cols-3 gap-8">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-coffee-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-coffee-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-coffee-900 mb-2">AI Vision</h3>
+                <p className="text-coffee-600">
+                  Advanced computer vision identifies roaster, origin, and flavor notes from your coffee bag photo
+                </p>
+              </div>
+
+              <div className="text-center">
+                <div className="w-16 h-16 bg-coffee-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-coffee-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-coffee-900 mb-2">Customer Reviews</h3>
+                <p className="text-coffee-600">
+                  Automatically finds and displays customer reviews and ratings for the identified coffee
+                </p>
+              </div>
+
+              <div className="text-center">
+                <div className="w-16 h-16 bg-coffee-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-coffee-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-coffee-900 mb-2">Instant Results</h3>
+                <p className="text-coffee-600">
+                  Get comprehensive coffee information and reviews in seconds, not minutes
+                </p>
               </div>
             </div>
           </div>
