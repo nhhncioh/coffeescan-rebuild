@@ -1,6 +1,7 @@
-// src/app/api/reviews/route.ts - Improved version with better error handling
+// src/app/api/reviews/route.ts - Updated with Puppeteer
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import puppeteer from 'puppeteer'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -62,18 +63,16 @@ async function searchWithGoogleAPI(roaster: string, productName: string): Promis
       return [];
     }
     
-    // Extract URLs from search results
     const urls = data.items
       .map((item: any) => item.link)
       .filter((url: string) => {
-        // Filter for relevant coffee-related URLs
         const urlLower = url.toLowerCase();
         return urlLower.includes('coffee') || 
                urlLower.includes('roast') || 
                urlLower.includes('bean') ||
                urlLower.includes(roaster.toLowerCase().replace(/\s+/g, ''));
       })
-      .slice(0, 5); // Limit to top 5 results
+      .slice(0, 5);
     
     console.log(`Found ${urls.length} relevant URLs from Google Search`);
     return urls;
@@ -87,13 +86,11 @@ async function searchWithGoogleAPI(roaster: string, productName: string): Promis
 async function intelligentProductSearch(roaster: string, productName: string): Promise<string[]> {
   console.log(`Searching for: ${roaster} - ${productName}`);
 
-  // Try Google Custom Search if API key is available
   if (process.env.GOOGLE_SEARCH_API_KEY && process.env.GOOGLE_SEARCH_ENGINE_ID) {
     try {
       const googleResults = await searchWithGoogleAPI(roaster, productName);
       if (googleResults.length > 0) {
         console.log('Using Google Search results');
-        // Also add our generated URLs as fallbacks
         const generatedUrls = generateLikelyUrls(roaster, productName);
         return [...googleResults, ...generatedUrls.slice(0, 3)];
       }
@@ -102,7 +99,6 @@ async function intelligentProductSearch(roaster: string, productName: string): P
     }
   }
 
-  // Fallback: Generate likely URLs based on common patterns
   console.log('Using URL generation fallback');
   return generateLikelyUrls(roaster, productName);
 }
@@ -120,7 +116,6 @@ function generateLikelyUrls(roaster: string, productName: string): string[] {
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9-]/g, '');
 
-  // Common coffee website patterns
   const patterns = [
     `https://${cleanRoaster}.com/products/${cleanProduct}`,
     `https://${cleanRoaster}.com/coffee/${cleanProduct}`,
@@ -130,96 +125,142 @@ function generateLikelyUrls(roaster: string, productName: string): string[] {
     `https://www.${cleanRoaster}coffee.com/products/${cleanProduct}`,
   ];
 
-  // Also try some major coffee retailers
   const retailers = [
     `https://www.amazon.com/s?k=${roaster}+${productName}+coffee`,
     `https://www.williams-sonoma.com/search/results.html?words=${roaster}+${productName}`,
   ];
 
-  console.log('Generated URLs:', patterns.slice(0, 3)); // Log first 3 URLs for debugging
+  console.log('Generated URLs:', patterns.slice(0, 3));
   return [...patterns, ...retailers];
 }
 
-async function extractProductInfoSafely(url: string): Promise<any> {
+async function extractProductInfoWithPuppeteer(url: string): Promise<any> {
+  let browser;
   try {
-    console.log(`Attempting to fetch: ${url}`);
+    console.log(`Using Puppeteer to fetch: ${url}`);
     
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-      },
-      signal: controller.signal
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu'
+      ]
     });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      console.log(`HTTP ${response.status} for ${url}`);
-      return null;
-    }
-
-    const html = await response.text();
     
-    // Basic check if this looks like a product page
-    const hasProductIndicators = html.toLowerCase().includes('price') || 
-                                 html.toLowerCase().includes('add to cart') ||
-                                 html.toLowerCase().includes('reviews') ||
-                                 html.toLowerCase().includes('rating');
-
-    if (!hasProductIndicators) {
-      console.log(`No product indicators found for ${url}`);
-      return null;
-    }
-
-    // Extract basic info without using GPT for now to save costs
-    const productInfo = extractBasicProductInfo(html, url);
-    return productInfo;
-
+    const page = await browser.newPage();
+    
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+    
+    await page.goto(url, { 
+      waitUntil: 'networkidle2', 
+      timeout: 15000 
+    });
+    
+    // Wait for reviews to load
+    await page.waitForTimeout(3000);
+    
+    const productInfo = await page.evaluate(() => {
+      const pageText = document.body.innerText;
+      
+      // Look for review patterns in the actual rendered content
+      const reviewPatterns = [
+        /based\s+on\s+(\d+)\s+reviews?/i,
+        /(\d+)\s+reviews?(?:\s|$)/i,
+        /(\d+)\s+customer\s+reviews?/i
+      ];
+      
+      const ratingPatterns = [
+        /(\d+\.?\d*)\s+out\s+of\s+5/i,
+        /(\d+\.?\d*)\s*\/\s*5/i,
+        /(\d+\.?\d*)\s+stars?/i
+      ];
+      
+      let totalReviews = 0;
+      let averageRating = 0;
+      let matchedReviewText = '';
+      let matchedRatingText = '';
+      
+      // Find review count - prioritize smaller numbers
+      for (const pattern of reviewPatterns) {
+        const matches = [...pageText.matchAll(new RegExp(pattern.source, 'gi'))];
+        for (const match of matches) {
+          const reviewCount = parseInt(match[1]);
+          if (reviewCount > 0 && reviewCount < 200) { // Realistic range for individual products
+            totalReviews = reviewCount;
+            matchedReviewText = match[0];
+            console.log(`Found reviews: ${totalReviews} from "${matchedReviewText}"`);
+            break;
+          }
+        }
+        if (totalReviews > 0) break;
+      }
+      
+      // Find rating
+      for (const pattern of ratingPatterns) {
+        const match = pageText.match(pattern);
+        if (match) {
+          const rating = parseFloat(match[1]);
+          if (rating >= 1 && rating <= 5) {
+            averageRating = rating;
+            matchedRatingText = match[0];
+            console.log(`Found rating: ${averageRating} from "${matchedRatingText}"`);
+            break;
+          }
+        }
+      }
+      
+      const title = document.title;
+      const priceMatch = pageText.match(/\$\d+\.?\d*/);
+      const price = priceMatch?.[0] || null;
+      
+      return {
+        title,
+        price,
+        totalReviews,
+        averageRating,
+        matchedReviewText,
+        matchedRatingText,
+        url: window.location.href
+      };
+    });
+    
+    console.log(`Puppeteer extracted from ${url}:`, {
+      ...productInfo,
+      source: new URL(url).hostname
+    });
+    
+    return {
+      ...productInfo,
+      source: new URL(url).hostname,
+      reviews: []
+    };
+    
   } catch (error) {
-    if (error.name === 'AbortError') {
-      console.log(`Request timeout for ${url}`);
-    } else {
-      console.log(`Error fetching ${url}:`, error.message);
-    }
+    console.error(`Puppeteer failed for ${url}:`, error.message);
     return null;
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
   }
 }
 
-function extractBasicProductInfo(html: string, url: string): any {
-  // Basic regex patterns to extract info without GPT
-  const titleMatch = html.match(/<title[^>]*>([^<]+)</i);
-  const priceMatch = html.match(/\$\d+\.?\d*/);
-  
-  // Look for common review patterns
-  const reviewMatches = html.match(/(\d+)\s*reviews?/i);
-  const ratingMatch = html.match(/(\d+\.?\d*)\s*(?:out of|\/)\s*5/i);
-
-  return {
-    title: titleMatch?.[1]?.trim() || 'Product Found',
-    price: priceMatch?.[0] || null,
-    totalReviews: reviewMatches ? parseInt(reviewMatches[1]) : 0,
-    averageRating: ratingMatch ? parseFloat(ratingMatch[1]) : 0,
-    url,
-    source: new URL(url).hostname,
-    reviews: [] // We'll generate mock reviews based on this data
-  };
-}
-
 async function generateContextualReviews(roaster: string, productName: string, productInfo?: any): Promise<ReviewSummary> {
-  // Generate more realistic reviews based on the actual coffee
-  const totalReviews = productInfo?.totalReviews || Math.floor(Math.random() * 50) + 15;
-  const averageRating = productInfo?.averageRating || (Math.random() * 1.5 + 3.5); // 3.5-5.0 range
+  const totalReviews = (productInfo?.totalReviews && productInfo.totalReviews > 0) 
+    ? productInfo.totalReviews 
+    : Math.floor(Math.random() * 50) + 15;
+    
+  const averageRating = (productInfo?.averageRating && productInfo.averageRating > 0)
+    ? productInfo.averageRating
+    : (Math.random() * 1.5 + 3.5);
   
-  // Fix: Ensure rating is between 1-5
-  const clampedRating = Math.min(5, Math.max(1, averageRating));
+  const finalRating = (productInfo?.averageRating && productInfo.averageRating > 0)
+    ? productInfo.averageRating
+    : Math.min(5, Math.max(1, averageRating));
+
+  console.log(`Generating reviews with data: reviews=${totalReviews}, rating=${finalRating}`);
 
   const reviewTemplates = [
     {
@@ -244,9 +285,9 @@ async function generateContextualReviews(roaster: string, productName: string, p
     },
     {
       author: 'HomeBrewer',
-      rating: 4,
+      rating: Math.round(finalRating),
       title: 'Solid choice',
-      comment: `Good everyday coffee. Not the most complex flavor profile but consistent quality from ${roaster}. Would order again.`,
+      comment: `Good everyday coffee. ${finalRating >= 4.5 ? 'Excellent quality and' : 'Decent'} consistent quality from ${roaster}. Would ${finalRating >= 4 ? 'definitely' : 'probably'} order again.`,
       date: '2024-08-05',
       verified: false,
       helpful: 3,
@@ -254,46 +295,39 @@ async function generateContextualReviews(roaster: string, productName: string, p
     },
     {
       author: 'CoffeeLover22',
-      rating: 5,
+      rating: Math.min(5, Math.round(finalRating) + 1),
       title: 'My new favorite!',
       comment: `Absolutely love this ${productName}! The aroma when you open the bag is incredible. ${roaster} has become my go-to roaster.`,
-      date: '2024-07-28',
+      date: '2024-07-27',
       verified: true,
       helpful: 15,
-      source: 'website' as const
-    },
-    {
-      author: 'JavaJunkie',
-      rating: 3,
-      title: 'Decent coffee',
-      comment: `It's good coffee but nothing extraordinary. The price point is fair for what you get. Might try other offerings from ${roaster}.`,
-      date: '2024-07-20',
-      verified: true,
-      helpful: 2,
       source: 'website' as const
     }
   ];
 
-  // Select 3-5 reviews and adjust ratings to match average
   const selectedReviews = reviewTemplates
     .sort(() => Math.random() - 0.5)
-    .slice(0, Math.floor(Math.random() * 3) + 3)
+    .slice(0, Math.floor(Math.random() * 2) + 3)
     .map(review => ({
       ...review,
       id: Math.random().toString(36).substr(2, 9)
     }));
 
-  // Calculate rating distribution based on a realistic distribution
   const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
   
-  // Generate realistic distribution based on average rating
-  if (clampedRating >= 4.5) {
+  if (finalRating >= 4.8) {
+    distribution[5] = Math.floor(totalReviews * 0.8);
+    distribution[4] = Math.floor(totalReviews * 0.15);
+    distribution[3] = Math.floor(totalReviews * 0.04);
+    distribution[2] = Math.floor(totalReviews * 0.01);
+    distribution[1] = totalReviews - distribution[5] - distribution[4] - distribution[3] - distribution[2];
+  } else if (finalRating >= 4.5) {
     distribution[5] = Math.floor(totalReviews * 0.6);
     distribution[4] = Math.floor(totalReviews * 0.3);
     distribution[3] = Math.floor(totalReviews * 0.08);
     distribution[2] = Math.floor(totalReviews * 0.02);
     distribution[1] = totalReviews - distribution[5] - distribution[4] - distribution[3] - distribution[2];
-  } else if (clampedRating >= 4.0) {
+  } else if (finalRating >= 4.0) {
     distribution[5] = Math.floor(totalReviews * 0.4);
     distribution[4] = Math.floor(totalReviews * 0.4);
     distribution[3] = Math.floor(totalReviews * 0.15);
@@ -307,9 +341,9 @@ async function generateContextualReviews(roaster: string, productName: string, p
     distribution[1] = Math.floor(totalReviews * 0.05);
   }
 
-  return {
+  const result = {
     totalReviews,
-    averageRating: Math.round(clampedRating * 10) / 10, // Fix: Round to 1 decimal place
+    averageRating: finalRating,
     ratingDistribution: distribution,
     recentReviews: selectedReviews,
     productPage: productInfo ? {
@@ -321,6 +355,9 @@ async function generateContextualReviews(roaster: string, productName: string, p
       source: productInfo.source
     } : undefined
   };
+
+  console.log(`Final review summary: rating=${result.averageRating}, reviews=${result.totalReviews}`);
+  return result;
 }
 
 export async function POST(request: NextRequest) {
@@ -337,31 +374,23 @@ export async function POST(request: NextRequest) {
     const startTime = Date.now();
     console.log(`Starting review search for: ${roaster} - ${productName}`);
 
-    // Search for product pages
     const productUrls = await intelligentProductSearch(roaster, productName);
     let productInfo: any = null;
 
-    // Try to extract info from first few URLs
-    for (const url of productUrls.slice(0, 2)) { // Only try first 2 to avoid too many requests
-      const info = await extractProductInfoSafely(url);
-      if (info) {
+    // Try first 2 URLs with Puppeteer
+    for (const url of productUrls.slice(0, 2)) {
+      const info = await extractProductInfoWithPuppeteer(url);
+      if (info && (info.totalReviews > 0 || info.averageRating > 0)) {
         productInfo = info;
         console.log(`Successfully extracted info from: ${url}`);
         break;
       }
     }
 
-    // Generate reviews (mix real data if found with realistic mock data)
     const reviewSummary = await generateContextualReviews(roaster, productName, productInfo);
 
     const processingTime = Date.now() - startTime;
     console.log(`Review search completed in ${processingTime}ms`);
-    console.log('Review summary:', {
-      totalReviews: reviewSummary.totalReviews,
-      averageRating: reviewSummary.averageRating,
-      reviewCount: reviewSummary.recentReviews.length,
-      hasProductPage: !!reviewSummary.productPage
-    });
 
     return NextResponse.json({
       success: true,
@@ -382,21 +411,4 @@ export async function POST(request: NextRequest) {
       error: 'Failed to fetch reviews'
     }, { status: 500 });
   }
-}
-
-function calculateAverageRating(reviews: any[]): number {
-  if (!reviews.length) return 0;
-  const sum = reviews.reduce((acc, review) => acc + (review.rating || 0), 0);
-  return Math.round((sum / reviews.length) * 10) / 10;
-}
-
-function calculateRatingDistribution(reviews: any[]): ReviewSummary['ratingDistribution'] {
-  const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-  reviews.forEach(review => {
-    const rating = Math.round(review.rating || 0) as keyof typeof distribution;
-    if (rating >= 1 && rating <= 5) {
-      distribution[rating]++;
-    }
-  });
-  return distribution;
 }
