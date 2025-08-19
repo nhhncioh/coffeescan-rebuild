@@ -1,23 +1,75 @@
-﻿'use client'
+﻿// src/app/page.tsx - Enhanced version with review functionality
+'use client'
 
 import { useState } from 'react'
-import ImageUploader from '../components/ImageUploader'
+import ImageUploader from '@/components/ImageUploader'
+import ScanResults from '@/components/ScanResults'
+
+interface CoffeeExtraction {
+  roaster?: string;
+  productName?: string;
+  origin?: string;
+  region?: string;
+  farm?: string;
+  varietal?: string[];
+  processingMethod?: string;
+  roastLevel?: string;
+  flavorNotes?: string[];
+  altitude?: number;
+  harvestYear?: number;
+  price?: string;
+  weight?: string;
+  brewRecommendations?: string[];
+}
+
+interface ReviewSummary {
+  totalReviews: number;
+  averageRating: number;
+  ratingDistribution: {
+    5: number;
+    4: number;
+    3: number;
+    2: number;
+    1: number;
+  };
+  recentReviews: any[];
+  productPage?: {
+    url: string;
+    title: string;
+    description?: string;
+    price?: string;
+    availability?: string;
+    source: string;
+  };
+}
+
+interface EnhancedScanResult {
+  id: string;
+  extraction: CoffeeExtraction;
+  confidence: number;
+  processingMethod: 'vision' | 'ocr' | 'hybrid';
+  processingTime: number;
+  imageUrl?: string;
+  productSearched?: boolean;
+  productFound?: boolean;
+  reviews?: ReviewSummary;
+}
 
 export default function HomePage() {
-  const [file, setFile] = useState<File | null>(null)
   const [isScanning, setIsScanning] = useState(false)
-  const [result, setResult] = useState<any>(null)
+  const [result, setResult] = useState<EnhancedScanResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [includeReviews, setIncludeReviews] = useState(true)
 
-  const handleScan = async () => {
-    if (!file) return
-
+  const handleImageSelect = async (file: File) => {
     setIsScanning(true)
     setError(null)
+    setResult(null)
 
     try {
       const formData = new FormData()
       formData.append('image', file)
+      formData.append('includeReviews', includeReviews.toString())
 
       const response = await fetch('/api/scan', {
         method: 'POST',
@@ -29,7 +81,7 @@ export default function HomePage() {
       if (data.success) {
         setResult(data.data)
       } else {
-        setError(data.error || 'Scan failed')
+        setError(data.error || 'Scanning failed')
       }
     } catch (err) {
       setError('Network error occurred')
@@ -39,65 +91,165 @@ export default function HomePage() {
   }
 
   const reset = () => {
-    setFile(null)
     setResult(null)
     setError(null)
+    setIsScanning(false)
+  }
+
+  const handleFeedback = async (feedback: any) => {
+    // You can implement feedback submission to your backend here
+    console.log('Feedback received:', feedback)
+    // Example: await fetch('/api/feedback', { method: 'POST', body: JSON.stringify(feedback) })
   }
 
   return (
-    <div className="min-h-screen p-8">
-      <h1 className="text-3xl font-bold mb-8">Coffee Scanner</h1>
-      
-      {!file && !result && (
-        <ImageUploader onImageSelect={setFile} />
-      )}
+    <div className="min-h-screen bg-gradient-to-br from-coffee-50 to-coffee-100">
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold text-coffee-900 mb-4">
+            Coffee Scanner
+          </h1>
+          <p className="text-xl text-coffee-600 max-w-2xl mx-auto">
+            Upload a photo of your coffee bag to instantly identify the roaster, origin, flavor notes, and find customer reviews.
+          </p>
+        </div>
 
-      {file && !result && (
-        <div className="max-w-md mx-auto p-6 bg-white rounded-lg shadow">
-          <p className="mb-4">File selected: {file.name}</p>
-          <div className="flex space-x-4">
-            <button 
-              onClick={handleScan}
-              disabled={isScanning}
-              className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-            >
-              {isScanning ? 'Scanning...' : 'Scan Coffee'}
-            </button>
-            <button 
-              onClick={reset}
-              className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-            >
-              Reset
-            </button>
+        {!result && !isScanning && (
+          <div className="max-w-2xl mx-auto">
+            {/* Options Section */}
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+              <h3 className="text-lg font-semibold text-coffee-900 mb-4">Scan Options</h3>
+              <div className="space-y-4">
+                <label className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={includeReviews}
+                    onChange={(e) => setIncludeReviews(e.target.checked)}
+                    className="w-4 h-4 text-coffee-600 border-coffee-300 rounded focus:ring-coffee-500"
+                  />
+                  <div>
+                    <span className="font-medium text-coffee-900">Find Reviews</span>
+                    <p className="text-sm text-coffee-600">
+                      Search for customer reviews and ratings for this coffee
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <ImageUploader onImageSelect={handleImageSelect} isProcessing={isScanning} />
           </div>
-        </div>
-      )}
+        )}
 
-      {result && (
-        <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow">
-          <h2 className="text-2xl font-bold mb-4">Coffee Identified!</h2>
-          <div className="space-y-2">
-            <p><strong>Roaster:</strong> {result.extraction.roaster}</p>
-            <p><strong>Coffee:</strong> {result.extraction.productName}</p>
-            <p><strong>Origin:</strong> {result.extraction.origin}</p>
-            <p><strong>Roast Level:</strong> {result.extraction.roastLevel}</p>
-            <p><strong>Flavor Notes:</strong> {result.extraction.flavorNotes?.join(', ')}</p>
-            <p><strong>Confidence:</strong> {Math.round(result.confidence * 100)}%</p>
+        {isScanning && (
+          <div className="max-w-md mx-auto text-center">
+            <div className="bg-white rounded-lg shadow-sm p-8">
+              <div className="coffee-loader mx-auto mb-4"></div>
+              <h3 className="text-lg font-semibold text-coffee-900 mb-2">
+                Analyzing Coffee...
+              </h3>
+              <p className="text-coffee-600">
+                {includeReviews 
+                  ? 'Extracting information and searching for reviews...' 
+                  : 'Extracting coffee information...'
+                }
+              </p>
+              <div className="mt-6 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-coffee-600">Processing image</span>
+                  <span className="text-green-600">✓</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-coffee-600">Extracting coffee details</span>
+                  <div className="coffee-loader w-3 h-3"></div>
+                </div>
+                {includeReviews && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-coffee-600">Finding reviews</span>
+                    <div className="coffee-loader w-3 h-3"></div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-          <button 
-            onClick={reset}
-            className="mt-4 px-6 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-          >
-            Scan Another
-          </button>
-        </div>
-      )}
+        )}
 
-      {error && (
-        <div className="max-w-md mx-auto p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-          Error: {error}
-        </div>
-      )}
+        {result && (
+          <div className="max-w-4xl mx-auto">
+            <ScanResults 
+              result={result} 
+              onNewScan={reset}
+              onFeedback={handleFeedback}
+            />
+          </div>
+        )}
+
+        {error && (
+          <div className="max-w-md mx-auto">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+              <div className="text-red-600 mb-2">
+                <svg className="w-8 h-8 mx-auto" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-red-900 mb-2">
+                Scan Failed
+              </h3>
+              <p className="text-red-700 mb-4">{error}</p>
+              <button 
+                onClick={reset}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Feature Info Section */}
+        {!result && !isScanning && (
+          <div className="max-w-4xl mx-auto mt-16">
+            <div className="grid md:grid-cols-3 gap-8">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-coffee-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-coffee-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-coffee-900 mb-2">AI Vision</h3>
+                <p className="text-coffee-600">
+                  Advanced computer vision identifies roaster, origin, and flavor notes from your coffee bag photo
+                </p>
+              </div>
+
+              <div className="text-center">
+                <div className="w-16 h-16 bg-coffee-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-coffee-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-coffee-900 mb-2">Customer Reviews</h3>
+                <p className="text-coffee-600">
+                  Automatically finds and displays customer reviews and ratings for the identified coffee
+                </p>
+              </div>
+
+              <div className="text-center">
+                <div className="w-16 h-16 bg-coffee-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-coffee-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-coffee-900 mb-2">Instant Results</h3>
+                <p className="text-coffee-600">
+                  Get comprehensive coffee information and reviews in seconds, not minutes
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

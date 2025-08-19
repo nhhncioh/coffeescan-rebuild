@@ -1,3 +1,4 @@
+// src/types/index.ts - Complete enhanced types file
 // Core types for the coffee scanning application
 
 export interface CoffeeExtraction {
@@ -70,6 +71,63 @@ export interface UserFeedback {
   recommendationQuality?: number; // 1-5
   corrections?: Partial<CoffeeExtraction>;
   comments?: string;
+}
+
+// Review-related types
+export interface ProductReview {
+  id: string;
+  author: string;
+  rating: number; // 1-5 stars
+  title?: string;
+  comment: string;
+  date: string;
+  verified?: boolean;
+  helpful?: number; // number of helpful votes
+  source: 'website' | 'amazon' | 'third-party';
+}
+
+export interface ProductPage {
+  url: string;
+  title: string;
+  description?: string;
+  price?: string;
+  availability?: string;
+  images?: string[];
+  specifications?: Record<string, string>;
+  source: string; // website domain
+}
+
+export interface ReviewSummary {
+  totalReviews: number;
+  averageRating: number;
+  ratingDistribution: {
+    5: number;
+    4: number;
+    3: number;
+    2: number;
+    1: number;
+  };
+  recentReviews: ProductReview[];
+  productPage?: ProductPage;
+}
+
+// Enhanced ScanResult to include reviews
+export interface EnhancedScanResult extends ScanResult {
+  reviews?: ReviewSummary;
+  productSearched?: boolean;
+  productFound?: boolean;
+}
+
+// API request/response types for reviews
+export interface ReviewsApiRequest {
+  roaster: string;
+  productName: string;
+  searchQuery?: string;
+}
+
+export interface ReviewsApiResponse extends ApiResponse<ReviewSummary> {
+  searchQuery?: string;
+  searchTime?: number;
 }
 
 // API Response Types
