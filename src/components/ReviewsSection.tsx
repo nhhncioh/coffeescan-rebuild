@@ -45,18 +45,20 @@ interface ReviewsSectionProps {
 export default function ReviewsSection({ reviews, roaster, productName }: ReviewsSectionProps) {
   const [showAllReviews, setShowAllReviews] = useState(false);
 
-  // Multiple layers of null safety
   if (!reviews || typeof reviews !== 'object') {
     return (
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-        <div className="text-center py-8">
-          <p className="text-gray-500">No reviews available</p>
-        </div>
+      <div style={{ 
+        backgroundColor: 'white', 
+        border: '1px solid #e5e7eb', 
+        borderRadius: '12px', 
+        padding: '24px',
+        textAlign: 'center'
+      }}>
+        <p style={{ color: '#6b7280' }}>No reviews available</p>
       </div>
     );
   }
 
-  // Extremely safe property access
   let productPageUrl = null;
   let productPageSource = null;
   let productPagePrice = null;
@@ -68,27 +70,33 @@ export default function ReviewsSection({ reviews, roaster, productName }: Review
       productPagePrice = reviews.productPage.price || null;
     }
   } catch (e) {
-    // Swallow any errors and use null values
     console.warn('Error accessing productPage properties:', e);
   }
 
   const renderStars = (rating: number, size: 'sm' | 'md' = 'sm') => {
-    const starClass = size === 'sm' ? 'text-base' : 'text-xl';
+    const starSize = size === 'sm' ? '16px' : '20px';
     const fullStars = Math.floor(rating || 0);
     
     return (
-      <div className="flex items-center gap-1">
+      <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
         {[1, 2, 3, 4, 5].map((star) => (
           <span 
             key={star}
-            className={`${starClass} leading-none ${
-              star <= fullStars ? 'text-yellow-400' : 'text-gray-300'
-            }`}
+            style={{ 
+              color: star <= fullStars ? '#fbbf24' : '#d1d5db',
+              fontSize: starSize,
+              lineHeight: '1'
+            }}
           >
             ★
           </span>
         ))}
-        <span className="ml-2 text-sm font-medium">
+        <span style={{ 
+          marginLeft: '8px', 
+          fontSize: '14px', 
+          fontWeight: '500',
+          color: '#374151'
+        }}>
           {(rating || 0).toFixed(1)}
         </span>
       </div>
@@ -100,23 +108,47 @@ export default function ReviewsSection({ reviews, roaster, productName }: Review
     const totalReviews = reviews.totalReviews || 0;
 
     return (
-      <div className="flex flex-col gap-2">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {[5, 4, 3, 2, 1].map((rating) => {
           const count = distribution[rating as keyof typeof distribution] || 0;
           const percentage = totalReviews > 0 ? (count / totalReviews) * 100 : 0;
           
           return (
-            <div key={rating} className="flex items-center gap-3">
-              <span className="text-sm font-medium text-gray-700 w-8">
+            <div key={rating} style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px',
+              fontSize: '14px'
+            }}>
+              <span style={{ 
+                fontWeight: '500', 
+                color: '#374151', 
+                width: '24px',
+                textAlign: 'right'
+              }}>
                 {rating}★
               </span>
-              <div className="flex-1 bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-yellow-400 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${percentage}%` }}
-                />
+              <div style={{ 
+                flex: '1', 
+                backgroundColor: '#e5e7eb', 
+                borderRadius: '9999px', 
+                height: '8px',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                <div style={{ 
+                  backgroundColor: '#fbbf24', 
+                  height: '8px', 
+                  borderRadius: '9999px',
+                  width: `${percentage}%`,
+                  transition: 'width 0.3s ease'
+                }} />
               </div>
-              <span className="text-sm text-gray-600 w-12 text-right">
+              <span style={{ 
+                color: '#6b7280', 
+                width: '32px',
+                textAlign: 'right'
+              }}>
                 {count}
               </span>
             </div>
@@ -139,16 +171,22 @@ export default function ReviewsSection({ reviews, roaster, productName }: Review
   };
 
   const getSourceBadge = (source: string) => {
-    const baseClasses = "px-2 py-1 rounded text-xs font-medium";
+    const baseStyle = {
+      padding: '4px 8px',
+      borderRadius: '4px',
+      fontSize: '12px',
+      fontWeight: '500'
+    };
+    
     switch (source) {
       case 'website':
-        return `${baseClasses} bg-blue-100 text-blue-800`;
+        return { ...baseStyle, backgroundColor: '#dbeafe', color: '#1e40af' };
       case 'amazon':
-        return `${baseClasses} bg-orange-100 text-orange-800`;
+        return { ...baseStyle, backgroundColor: '#fed7aa', color: '#ea580c' };
       case 'third-party':
-        return `${baseClasses} bg-purple-100 text-purple-800`;
+        return { ...baseStyle, backgroundColor: '#e9d5ff', color: '#7c3aed' };
       default:
-        return `${baseClasses} bg-gray-100 text-gray-800`;
+        return { ...baseStyle, backgroundColor: '#f3f4f6', color: '#374151' };
     }
   };
 
@@ -166,15 +204,40 @@ export default function ReviewsSection({ reviews, roaster, productName }: Review
   const totalReviews = reviews.totalReviews || 0;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-xl font-semibold text-gray-900">Customer Reviews</h3>
+    <div style={{ 
+      backgroundColor: 'white', 
+      border: '1px solid #e5e7eb', 
+      borderRadius: '12px', 
+      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+      padding: '24px'
+    }}>
+      {/* Header */}
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between', 
+        marginBottom: '24px' 
+      }}>
+        <h3 style={{ 
+          fontSize: '20px', 
+          fontWeight: '600', 
+          color: '#111827',
+          margin: '0'
+        }}>
+          Customer Reviews
+        </h3>
         {productPageUrl && (
           <a
             href={productPageUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-blue-600 hover:text-blue-800 transition-colors"
+            style={{ 
+              fontSize: '14px', 
+              color: '#2563eb', 
+              textDecoration: 'none'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.color = '#1d4ed8'}
+            onMouseOut={(e) => e.currentTarget.style.color = '#2563eb'}
           >
             View Product Page ↗
           </a>
@@ -182,22 +245,48 @@ export default function ReviewsSection({ reviews, roaster, productName }: Review
       </div>
 
       {/* Rating Summary */}
-      <div className="mb-6 p-6 bg-gray-50 rounded-lg">
-        <div className="flex justify-between items-center">
-          <div className="text-center">
-            <div className="text-5xl font-bold mb-2 text-gray-900">
+      <div style={{ 
+        marginBottom: '24px', 
+        padding: '20px', 
+        backgroundColor: '#f9fafb', 
+        borderRadius: '8px' 
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center' 
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ 
+              fontSize: '48px', 
+              fontWeight: 'bold', 
+              marginBottom: '8px', 
+              color: '#111827' 
+            }}>
               {averageRating.toFixed(1)}
             </div>
             {renderStars(averageRating, 'md')}
-            <div className="mt-2 text-sm text-gray-600">
+            <div style={{ 
+              marginTop: '4px', 
+              fontSize: '14px', 
+              color: '#6b7280' 
+            }}>
               {getRatingDescription(averageRating)}
             </div>
           </div>
-          <div className="text-center">
-            <div className="text-3xl font-bold mb-2 text-gray-900">
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ 
+              fontSize: '32px', 
+              fontWeight: 'bold', 
+              marginBottom: '8px', 
+              color: '#111827' 
+            }}>
               {totalReviews}
             </div>
-            <div className="text-sm text-gray-600">
+            <div style={{ 
+              fontSize: '14px', 
+              color: '#6b7280' 
+            }}>
               Total Reviews
             </div>
           </div>
@@ -205,47 +294,113 @@ export default function ReviewsSection({ reviews, roaster, productName }: Review
       </div>
 
       {/* Rating Breakdown */}
-      <div className="mb-6">
-        <h4 className="font-medium text-gray-900 mb-3">Rating Breakdown</h4>
+      <div style={{ marginBottom: '24px' }}>
+        <h4 style={{ 
+          fontWeight: '500', 
+          color: '#111827', 
+          marginBottom: '12px',
+          fontSize: '16px',
+          margin: '0 0 12px 0'
+        }}>
+          Rating Breakdown
+        </h4>
         {renderRatingDistribution()}
       </div>
 
       {/* Recent Reviews */}
       <div>
-        <h4 className="font-medium text-gray-900 mb-4">Recent Reviews</h4>
-        <div className="flex flex-col gap-6">
+        <h4 style={{ 
+          fontWeight: '500', 
+          color: '#111827', 
+          marginBottom: '16px',
+          fontSize: '16px',
+          margin: '0 0 16px 0'
+        }}>
+          Recent Reviews
+        </h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {recentReviews
             .slice(0, showAllReviews ? recentReviews.length : 3)
-            .map((review) => (
-              <div key={review.id} className="pb-6 border-b border-gray-200 last:border-b-0">
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex-1">
-                    <div className="flex items-center flex-wrap gap-2 mb-2">
-                      <span className="font-medium text-gray-900">{review.author}</span>
+            .map((review, index) => (
+              <div key={review.id} style={{ 
+                paddingBottom: index < recentReviews.slice(0, showAllReviews ? recentReviews.length : 3).length - 1 ? '20px' : '0',
+                borderBottom: index < recentReviews.slice(0, showAllReviews ? recentReviews.length : 3).length - 1 ? '1px solid #e5e7eb' : 'none'
+              }}>
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'flex-start', 
+                  marginBottom: '8px' 
+                }}>
+                  <div style={{ flex: '1' }}>
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      flexWrap: 'wrap', 
+                      gap: '8px', 
+                      marginBottom: '4px' 
+                    }}>
+                      <span style={{ 
+                        fontWeight: '500', 
+                        color: '#111827',
+                        fontSize: '14px'
+                      }}>
+                        {review.author}
+                      </span>
                       {review.verified && (
-                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
-                          Verified Purchase
+                        <span style={{ 
+                          backgroundColor: '#dcfce7', 
+                          color: '#166534', 
+                          padding: '2px 6px', 
+                          borderRadius: '4px', 
+                          fontSize: '11px',
+                          fontWeight: '500'
+                        }}>
+                          Verified
                         </span>
                       )}
-                      <span className={getSourceBadge(review.source)}>
+                      <span style={getSourceBadge(review.source)}>
                         {review.source}
                       </span>
                     </div>
                     {renderStars(review.rating)}
                   </div>
-                  <span className="text-sm text-gray-500 ml-4 flex-shrink-0">
+                  <span style={{ 
+                    fontSize: '12px', 
+                    color: '#6b7280', 
+                    marginLeft: '16px'
+                  }}>
                     {formatDate(review.date)}
                   </span>
                 </div>
                 
                 {review.title && (
-                  <h5 className="font-medium mb-2 text-gray-900">{review.title}</h5>
+                  <h5 style={{ 
+                    fontWeight: '500', 
+                    marginBottom: '4px', 
+                    color: '#111827',
+                    fontSize: '14px',
+                    margin: '0 0 4px 0'
+                  }}>
+                    {review.title}
+                  </h5>
                 )}
                 
-                <p className="text-gray-700 leading-relaxed mb-3">{review.comment}</p>
+                <p style={{ 
+                  color: '#374151', 
+                  fontSize: '14px', 
+                  lineHeight: '1.5', 
+                  marginBottom: '8px',
+                  margin: '0 0 8px 0'
+                }}>
+                  {review.comment}
+                </p>
                 
                 {review.helpful && review.helpful > 0 && (
-                  <div className="text-sm text-gray-500">
+                  <div style={{ 
+                    fontSize: '12px', 
+                    color: '#6b7280' 
+                  }}>
                     {review.helpful} people found this helpful
                   </div>
                 )}
@@ -256,7 +411,18 @@ export default function ReviewsSection({ reviews, roaster, productName }: Review
         {recentReviews.length > 3 && (
           <button
             onClick={() => setShowAllReviews(!showAllReviews)}
-            className="mt-4 text-blue-600 hover:text-blue-800 font-medium text-sm transition-colors"
+            style={{ 
+              marginTop: '12px', 
+              color: '#2563eb', 
+              fontWeight: '500', 
+              fontSize: '14px',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '0'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.color = '#1d4ed8'}
+            onMouseOut={(e) => e.currentTarget.style.color = '#2563eb'}
           >
             {showAllReviews ? 'Show Less' : `Show All ${recentReviews.length} Reviews`}
           </button>
@@ -265,11 +431,25 @@ export default function ReviewsSection({ reviews, roaster, productName }: Review
 
       {/* Footer */}
       {productPageUrl && (
-        <div className="mt-8 pt-6 border-t border-gray-200">
-          <div className="flex justify-between text-sm text-gray-600">
+        <div style={{ 
+          marginTop: '32px', 
+          paddingTop: '24px', 
+          borderTop: '1px solid #e5e7eb' 
+        }}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            fontSize: '14px', 
+            color: '#6b7280' 
+          }}>
             <span>Reviews from {productPageSource || 'website'}</span>
             {productPagePrice && (
-              <span className="font-medium text-gray-900">{productPagePrice}</span>
+              <span style={{ 
+                fontWeight: '500', 
+                color: '#111827' 
+              }}>
+                {productPagePrice}
+              </span>
             )}
           </div>
         </div>
