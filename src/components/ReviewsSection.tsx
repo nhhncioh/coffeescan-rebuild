@@ -33,7 +33,7 @@ interface ReviewSummary {
     price?: string;
     availability?: string;
     source: string;
-  };
+  } | null;
 }
 
 interface ReviewsSectionProps {
@@ -46,24 +46,22 @@ export default function ReviewsSection({ reviews, roaster, productName }: Review
   const [showAllReviews, setShowAllReviews] = useState(false);
 
   const renderStars = (rating: number, size: 'sm' | 'md' = 'sm') => {
-    const starSize = size === 'sm' ? '16px' : '20px';
+    const starClass = size === 'sm' ? 'text-base' : 'text-xl';
     const fullStars = Math.floor(rating);
     
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+      <div className="flex items-center gap-1">
         {[1, 2, 3, 4, 5].map((star) => (
           <span 
             key={star}
-            style={{ 
-              color: star <= fullStars ? '#fbbf24' : '#d1d5db',
-              fontSize: starSize,
-              lineHeight: '1'
-            }}
+            className={`${starClass} leading-none ${
+              star <= fullStars ? 'text-yellow-400' : 'text-gray-300'
+            }`}
           >
             ★
           </span>
         ))}
-        <span style={{ marginLeft: '8px', fontSize: '14px', fontWeight: '500' }}>
+        <span className="ml-2 text-sm font-medium">
           {rating.toFixed(1)}
         </span>
       </div>
@@ -72,27 +70,25 @@ export default function ReviewsSection({ reviews, roaster, productName }: Review
 
   const renderRatingDistribution = () => {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div className="flex flex-col gap-2">
         {[5, 4, 3, 2, 1].map((rating) => {
           const count = reviews.ratingDistribution[rating as keyof typeof reviews.ratingDistribution];
           const percentage = reviews.totalReviews > 0 ? (count / reviews.totalReviews) * 100 : 0;
           
           return (
-            <div key={rating} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
-              <span style={{ width: '12px', textAlign: 'right' }}>{rating}</span>
-              <span style={{ color: '#fbbf24', width: '16px' }}>★</span>
-              <div style={{ flex: 1, height: '8px', backgroundColor: '#e5e7eb', borderRadius: '4px', minWidth: '100px' }}>
-                <div
-                  style={{ 
-                    width: `${Math.max(percentage, 2)}%`, 
-                    height: '100%', 
-                    backgroundColor: '#fbbf24', 
-                    borderRadius: '4px',
-                    transition: 'width 0.3s ease'
-                  }}
+            <div key={rating} className="flex items-center gap-3">
+              <span className="text-sm font-medium text-gray-700 w-8">
+                {rating}★
+              </span>
+              <div className="flex-1 bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-yellow-400 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${percentage}%` }}
                 />
               </div>
-              <span style={{ width: '32px', textAlign: 'right', color: '#6b7280' }}>{count}</span>
+              <span className="text-sm text-gray-600 w-12 text-right">
+                {count}
+              </span>
             </div>
           );
         })}
@@ -101,46 +97,50 @@ export default function ReviewsSection({ reviews, roaster, productName }: Review
   };
 
   const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      });
-    } catch {
-      return dateString;
-    }
+    return new Date(dateString).toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
   };
 
   const getSourceBadge = (source: string) => {
-    const badges = {
-      website: { background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' },
-      amazon: { background: '#fed7aa', color: '#9a3412', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' },
-      'third-party': { background: '#f3f4f6', color: '#374151', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }
-    };
-    
-    return badges[source as keyof typeof badges] || badges['third-party'];
+    const baseClasses = "px-2 py-1 rounded text-xs font-medium";
+    switch (source) {
+      case 'website':
+        return `${baseClasses} bg-blue-100 text-blue-800`;
+      case 'amazon':
+        return `${baseClasses} bg-orange-100 text-orange-800`;
+      case 'third-party':
+        return `${baseClasses} bg-purple-100 text-purple-800`;
+      default:
+        return `${baseClasses} bg-gray-100 text-gray-800`;
+    }
   };
 
-  if (!reviews) {
-    return (
-      <div className="bg-white rounded-lg border shadow-sm p-6">
-        <h3 className="text-xl font-semibold text-gray-900 mb-4">Customer Reviews</h3>
-        <p className="text-gray-500">No reviews available</p>
-      </div>
-    );
-  }
+  const getRatingDescription = (rating: number) => {
+    if (rating >= 4.5) return 'Excellent';
+    if (rating >= 4.0) return 'Very Good';
+    if (rating >= 3.5) return 'Good';
+    if (rating >= 3.0) return 'Average';
+    return 'Below Average';
+  };
+
+  // Safe access to productPage properties
+  const productPageUrl = reviews.productPage?.url;
+  const productPageSource = reviews.productPage?.source;
+  const productPagePrice = reviews.productPage?.price;
 
   return (
-    <div className="bg-white rounded-lg border shadow-sm p-6">
+    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-xl font-semibold text-gray-900">Customer Reviews</h3>
-        {reviews.productPage && (
+        {productPageUrl && (
           <a
-            href={reviews.productPage.url}
+            href={productPageUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-blue-600 hover:text-blue-800"
+            className="text-sm text-blue-600 hover:text-blue-800 transition-colors"
           >
             View Product Page ↗
           </a>
@@ -149,24 +149,21 @@ export default function ReviewsSection({ reviews, roaster, productName }: Review
 
       {/* Rating Summary */}
       <div className="mb-6 p-6 bg-gray-50 rounded-lg">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '48px', fontWeight: 'bold', marginBottom: '8px' }}>
+        <div className="flex justify-between items-center">
+          <div className="text-center">
+            <div className="text-5xl font-bold mb-2 text-gray-900">
               {reviews.averageRating.toFixed(1)}
             </div>
             {renderStars(reviews.averageRating, 'md')}
-            <div style={{ marginTop: '8px', fontSize: '14px', color: '#6b7280' }}>
-              {reviews.averageRating >= 4.5 ? 'Excellent' : 
-               reviews.averageRating >= 4.0 ? 'Very Good' :
-               reviews.averageRating >= 3.5 ? 'Good' :
-               reviews.averageRating >= 3.0 ? 'Average' : 'Below Average'}
+            <div className="mt-2 text-sm text-gray-600">
+              {getRatingDescription(reviews.averageRating)}
             </div>
           </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', marginBottom: '8px' }}>
+          <div className="text-center">
+            <div className="text-3xl font-bold mb-2 text-gray-900">
               {reviews.totalReviews}
             </div>
-            <div style={{ fontSize: '14px', color: '#6b7280' }}>
+            <div className="text-sm text-gray-600">
               Total Reviews
             </div>
           </div>
@@ -182,39 +179,39 @@ export default function ReviewsSection({ reviews, roaster, productName }: Review
       {/* Recent Reviews */}
       <div>
         <h4 className="font-medium text-gray-900 mb-4">Recent Reviews</h4>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div className="flex flex-col gap-6">
           {reviews.recentReviews
             .slice(0, showAllReviews ? reviews.recentReviews.length : 3)
             .map((review) => (
-              <div key={review.id} style={{ paddingBottom: '24px', borderBottom: '1px solid #e5e7eb' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
-                      <span style={{ fontWeight: '500', color: '#111827' }}>{review.author}</span>
+              <div key={review.id} className="pb-6 border-b border-gray-200 last:border-b-0">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1">
+                    <div className="flex items-center flex-wrap gap-2 mb-2">
+                      <span className="font-medium text-gray-900">{review.author}</span>
                       {review.verified && (
-                        <span style={{ background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
                           Verified Purchase
                         </span>
                       )}
-                      <span style={getSourceBadge(review.source)}>
+                      <span className={getSourceBadge(review.source)}>
                         {review.source}
                       </span>
                     </div>
                     {renderStars(review.rating)}
                   </div>
-                  <span style={{ fontSize: '14px', color: '#6b7280', marginLeft: '16px', flexShrink: 0 }}>
+                  <span className="text-sm text-gray-500 ml-4 flex-shrink-0">
                     {formatDate(review.date)}
                   </span>
                 </div>
                 
                 {review.title && (
-                  <h5 style={{ fontWeight: '500', marginBottom: '8px' }}>{review.title}</h5>
+                  <h5 className="font-medium mb-2 text-gray-900">{review.title}</h5>
                 )}
                 
-                <p style={{ color: '#374151', lineHeight: '1.5' }}>{review.comment}</p>
+                <p className="text-gray-700 leading-relaxed mb-3">{review.comment}</p>
                 
                 {review.helpful && review.helpful > 0 && (
-                  <div style={{ marginTop: '12px', fontSize: '14px', color: '#6b7280' }}>
+                  <div className="text-sm text-gray-500">
                     {review.helpful} people found this helpful
                   </div>
                 )}
@@ -225,7 +222,7 @@ export default function ReviewsSection({ reviews, roaster, productName }: Review
         {reviews.recentReviews.length > 3 && (
           <button
             onClick={() => setShowAllReviews(!showAllReviews)}
-            className="mt-4 text-blue-600 hover:text-blue-800 font-medium text-sm"
+            className="mt-4 text-blue-600 hover:text-blue-800 font-medium text-sm transition-colors"
           >
             {showAllReviews ? 'Show Less' : `Show All ${reviews.recentReviews.length} Reviews`}
           </button>
@@ -233,12 +230,12 @@ export default function ReviewsSection({ reviews, roaster, productName }: Review
       </div>
 
       {/* Footer */}
-      {reviews.productPage && (
-        <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid #e5e7eb' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#6b7280' }}>
-            <span>Reviews from {reviews.productPage.source}</span>
-            {reviews.productPage.price && (
-              <span style={{ fontWeight: '500', color: '#111827' }}>{reviews.productPage.price}</span>
+      {productPageUrl && (
+        <div className="mt-8 pt-6 border-t border-gray-200">
+          <div className="flex justify-between text-sm text-gray-600">
+            <span>Reviews from {productPageSource || 'website'}</span>
+            {productPagePrice && (
+              <span className="font-medium text-gray-900">{productPagePrice}</span>
             )}
           </div>
         </div>

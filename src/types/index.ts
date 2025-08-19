@@ -3,19 +3,22 @@
 
 export interface CoffeeExtraction {
   roaster?: string;
+  roasterLocation?: string; // NEW: Location/country of roaster
   productName?: string;
-  origin?: string;
-  region?: string;
-  farm?: string;
-  varietal?: string[];
+  origin?: string; // Country of origin
+  region?: string; // NEW: Specific region/area within country
+  farm?: string; // NEW: Specific farm name
+  varietal?: string[]; // Coffee varieties/cultivars
   processingMethod?: string;
   roastLevel?: string;
   flavorNotes?: string[];
-  altitude?: number;
-  harvestYear?: number;
+  altitude?: number; // NEW: Growing altitude in meters
+  harvestYear?: number; // NEW: Year coffee was harvested
+  brewMethods?: string[]; // NEW: Recommended brewing methods
+  certifications?: string[]; // NEW: Organic, Fair Trade, etc.
   price?: string;
   weight?: string;
-  brewRecommendations?: string[];
+  brewRecommendations?: string[]; // Keep for backwards compatibility
 }
 
 export interface ScanResult {
