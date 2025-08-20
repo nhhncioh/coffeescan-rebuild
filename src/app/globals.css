@@ -1,6 +1,16 @@
+/* src/app/globals.css */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* FORCE ALL SVGS TO BE SMALL */
+svg {
+  width: 24px !important;
+  height: 24px !important;
+  max-width: 24px !important;
+  max-height: 24px !important;
+}
 
 @layer base {
   :root {
