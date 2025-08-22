@@ -1,6 +1,5 @@
-﻿'use client';
-import { enhanceResultUI } from "../lib/enhance-ui";
-import { useEffect } from "react";
+﻿'use client'
+
 // src/app/page.tsx - Enhanced version with review functionality
 
 import { useState } from 'react'
@@ -58,7 +57,6 @@ interface EnhancedScanResult {
 }
 
 export default function HomePage() {
-  useEffect(() => { try { enhanceResultUI(); } catch (e) { console.warn("enhanceResultUI", e); } }, []);
   const [isScanning, setIsScanning] = useState(false)
   const [result, setResult] = useState<EnhancedScanResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -105,15 +103,16 @@ export default function HomePage() {
     // Example: await fetch('/api/feedback', { method: 'POST', body: JSON.stringify(feedback) })
   }
 
-  return (<div className="container-safe pro-content stack-lg py-10 min-h-screen bg-gradient-to-br from-coffee-50 to-coffee-100">
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-coffee-50 to-coffee-100">
       <div className="container mx-auto px-4 py-8">
         <div className="text-center mb-12">
-          <div className="section stack-sm"><h1 className="text-4xl font-bold text-coffee-900 mb-4">
+          <h1 className="text-4xl font-bold text-coffee-900 mb-4">
             Coffee Scanner
           </h1>
           <p className="text-xl text-coffee-600 max-w-2xl mx-auto">
             Upload a photo of your coffee bag to instantly identify the roaster, origin, flavor notes, and find customer reviews.
-          </p></div>
+          </p>
         </div>
 
         {!result && !isScanning && (
@@ -255,10 +254,3 @@ export default function HomePage() {
     </div>
   )
 }
-
-
-
-
-
-
-

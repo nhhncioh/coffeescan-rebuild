@@ -42,8 +42,3 @@ main > h2 + *{
 
 /* Keep random SVGs sane */
 main svg:not([data-unbounded]){ width:22px; height:22px; }
-  
-/* --- Results polish --- */
-.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
-.chip{display:inline-flex;align-items:center;background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:6px 10px;box-shadow:0 4px 14px -10px rgba(0,0,0,.22);font-size:13px}
-.ai-pill{display:inline-block;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:999px;padding:6px 10px;font-size:13px}

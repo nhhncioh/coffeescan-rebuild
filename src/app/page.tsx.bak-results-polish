@@ -1,6 +1,5 @@
-﻿'use client';
-import { enhanceResultUI } from "../lib/enhance-ui";
-import { useEffect } from "react";
+﻿'use client'
+
 // src/app/page.tsx - Enhanced version with review functionality
 
 import { useState } from 'react'
@@ -58,7 +57,6 @@ interface EnhancedScanResult {
 }
 
 export default function HomePage() {
-  useEffect(() => { try { enhanceResultUI(); } catch (e) { console.warn("enhanceResultUI", e); } }, []);
   const [isScanning, setIsScanning] = useState(false)
   const [result, setResult] = useState<EnhancedScanResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -255,9 +253,6 @@ export default function HomePage() {
     </div>
   )
 }
-
-
-
 
 
 

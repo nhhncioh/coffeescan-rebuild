@@ -12,13 +12,16 @@ interface VisionOptions {
 }
 
 const VISION_PROMPT_BASIC = `
-You are a coffee expert analyzing a coffee bag label. Extract the following information from the image:
+You are a coffee expert analyzing a coffee bag label. Extract the following essential information from the image:
 
 1. Roaster/Brand name
 2. Coffee product name
 3. Origin (country/region)
 4. Roast level
-5. Basic flavor notes (if visible)
+5. Flavor notes (if visible)
+6. Brewing recommendations (if visible)
+
+Look for brewing method suggestions like: espresso, pour-over, french press, drip, aeropress, chemex, v60, cold brew, or any specific brewing instructions.
 
 Return ONLY a JSON object with this structure:
 {
@@ -26,10 +29,13 @@ Return ONLY a JSON object with this structure:
   "productName": "string or null", 
   "origin": "string or null",
   "roastLevel": "string or null",
-  "flavorNotes": ["array of strings or empty array"]
+  "flavorNotes": ["array of strings or empty array"],
+  "brewRecommendations": ["array of strings or empty array"]
 }
 
 Be precise and only include information you can clearly see on the label.
+Standardize roast levels: light, medium-light, medium, medium-dark, dark
+For brewing methods, use standard terms: espresso, pour-over, french-press, drip, aeropress, chemex, v60, cold-brew
 `
 
 const VISION_PROMPT_DETAILED = `
@@ -81,9 +87,9 @@ export async function extractWithVision(
   options: VisionOptions = {}
 ): Promise<VisionExtractionResult> {
   const {
-    extractionDepth = 'detailed',
+    extractionDepth = 'basic', // Changed default to 'basic' for faster processing
     model = 'gpt-4o',
-    maxTokens = 1000
+    maxTokens = 600 // Reduced from 1000 for faster processing
   } = options
 
   if (!process.env.OPENAI_API_KEY) {
@@ -149,10 +155,10 @@ export async function extractWithVision(
     }
 
     // Calculate confidence based on how much data was extracted
-    const confidence = calculateExtractionConfidence(structuredData)
+    const confidence = calculateExtractionConfidence(structuredData, extractionDepth)
 
     // Clean and validate the extracted data
-    const cleanedData = cleanExtractionData(structuredData)
+    const cleanedData = cleanExtractionData(structuredData, extractionDepth)
 
     return {
       rawResponse,
@@ -172,21 +178,32 @@ function extractFallbackData(text: string): CoffeeExtraction {
   const roasterMatch = text.match(/(?:roaster|brand)[:\s]+([^\n,]+)/i)
   const originMatch = text.match(/(?:origin|from)[:\s]+([^\n,]+)/i)
   const roastMatch = text.match(/(?:roast|roasted)[:\s]+(light|medium|dark)[^\n]*/i)
+  const brewMatch = text.match(/(?:brew|brewing)[:\s]+([^\n,]+)/i)
   
   return {
     roaster: roasterMatch?.[1]?.trim() || null,
     origin: originMatch?.[1]?.trim() || null,
     roastLevel: roastMatch?.[1]?.trim() || null,
-    flavorNotes: []
+    flavorNotes: [],
+    brewRecommendations: brewMatch ? [brewMatch[1].trim()] : []
   }
 }
 
-function calculateExtractionConfidence(data: CoffeeExtraction): number {
+function calculateExtractionConfidence(data: CoffeeExtraction, extractionDepth: string): number {
   let score = 0
   let maxScore = 0
 
-  // Weight different fields by importance
-  const fieldWeights = {
+  // Different weights based on extraction depth
+  const fieldWeights = extractionDepth === 'basic' ? {
+    // Basic extraction weights - focused on essentials
+    roaster: 0.35,
+    productName: 0.25,
+    origin: 0.15,
+    roastLevel: 0.1,
+    flavorNotes: 0.1,
+    brewRecommendations: 0.05
+  } : {
+    // Detailed extraction weights - original comprehensive weighting
     roaster: 0.3,
     productName: 0.2,
     origin: 0.2,
@@ -200,7 +217,7 @@ function calculateExtractionConfidence(data: CoffeeExtraction): number {
     maxScore += weight
     const value = (data as any)[field]
     
-    if (field === 'flavorNotes' || field === 'varietal') {
+    if (field === 'flavorNotes' || field === 'varietal' || field === 'brewRecommendations') {
       if (Array.isArray(value) && value.length > 0) {
         score += weight
       }
@@ -214,11 +231,13 @@ function calculateExtractionConfidence(data: CoffeeExtraction): number {
   return Math.min(score / maxScore, 1)
 }
 
-function cleanExtractionData(data: CoffeeExtraction): CoffeeExtraction {
+function cleanExtractionData(data: CoffeeExtraction, extractionDepth: string): CoffeeExtraction {
   const cleaned: CoffeeExtraction = {}
 
-  // Clean string fields
-  const stringFields = ['roaster', 'productName', 'origin', 'region', 'farm', 'processingMethod', 'roastLevel', 'price', 'weight']
+  // Different field sets based on extraction depth
+  const stringFields = extractionDepth === 'basic' 
+    ? ['roaster', 'productName', 'origin', 'roastLevel'] 
+    : ['roaster', 'productName', 'origin', 'region', 'farm', 'processingMethod', 'roastLevel', 'price', 'weight']
   
   for (const field of stringFields) {
     const value = (data as any)[field]
@@ -238,17 +257,45 @@ function cleanExtractionData(data: CoffeeExtraction): CoffeeExtraction {
     }
   }
 
-  // Clean array fields
-  const arrayFields = ['flavorNotes', 'varietal', 'brewRecommendations']
+  // Array fields - always include flavorNotes and brewRecommendations, conditionally include others
+  const arrayFields = extractionDepth === 'basic'
+    ? ['flavorNotes', 'brewRecommendations']
+    : ['flavorNotes', 'varietal', 'brewRecommendations']
   
   for (const field of arrayFields) {
     const value = (data as any)[field]
     if (Array.isArray(value)) {
       const cleanedArray = value
         .filter(item => typeof item === 'string' && item.trim().length > 0)
-        .map(item => item.trim())
-        .filter(item => item.length > 0 && item.length < 50) // Remove very long items
-        .slice(0, 10) // Limit array size
+        .map(item => {
+          let cleaned = item.trim()
+          
+          // Standardize brewing methods
+          if (field === 'brewRecommendations') {
+            cleaned = cleaned.toLowerCase()
+            if (cleaned.includes('pour over') || cleaned.includes('pour-over')) {
+              cleaned = 'pour-over'
+            } else if (cleaned.includes('french press')) {
+              cleaned = 'french-press'
+            } else if (cleaned.includes('cold brew')) {
+              cleaned = 'cold-brew'
+            } else if (cleaned.includes('espresso')) {
+              cleaned = 'espresso'
+            } else if (cleaned.includes('drip')) {
+              cleaned = 'drip'
+            } else if (cleaned.includes('aeropress')) {
+              cleaned = 'aeropress'
+            } else if (cleaned.includes('chemex')) {
+              cleaned = 'chemex'
+            } else if (cleaned.includes('v60')) {
+              cleaned = 'v60'
+            }
+          }
+          
+          return cleaned
+        })
+        .filter(item => item.length > 0 && item.length < 30) // Shorter limit for performance
+        .slice(0, 6) // Smaller limit for performance
       
       if (cleanedArray.length > 0) {
         (cleaned as any)[field] = [...new Set(cleanedArray)] // Remove duplicates
@@ -256,13 +303,15 @@ function cleanExtractionData(data: CoffeeExtraction): CoffeeExtraction {
     }
   }
 
-  // Clean numeric fields
-  if (typeof data.altitude === 'number' && data.altitude > 0 && data.altitude < 10000) {
-    cleaned.altitude = Math.round(data.altitude)
-  }
+  // Only process numeric fields in detailed mode
+  if (extractionDepth === 'detailed') {
+    if (typeof data.altitude === 'number' && data.altitude > 0 && data.altitude < 10000) {
+      cleaned.altitude = Math.round(data.altitude)
+    }
 
-  if (typeof data.harvestYear === 'number' && data.harvestYear > 1900 && data.harvestYear <= new Date().getFullYear()) {
-    cleaned.harvestYear = data.harvestYear
+    if (typeof data.harvestYear === 'number' && data.harvestYear > 1900 && data.harvestYear <= new Date().getFullYear()) {
+      cleaned.harvestYear = data.harvestYear
+    }
   }
 
   // Standardize roast level
@@ -277,8 +326,8 @@ function cleanExtractionData(data: CoffeeExtraction): CoffeeExtraction {
     }
   }
 
-  // Standardize processing method
-  if (cleaned.processingMethod) {
+  // Only standardize processing method in detailed mode
+  if (extractionDepth === 'detailed' && cleaned.processingMethod) {
     const processing = cleaned.processingMethod.toLowerCase()
     if (processing.includes('washed') || processing.includes('wet')) {
       cleaned.processingMethod = 'washed'
@@ -307,7 +356,7 @@ export async function testVisionExtraction(imagePath: string): Promise<void> {
     const imageBuffer = fs.readFileSync(imagePath)
     
     console.log('Testing vision extraction...')
-    const result = await extractWithVision(imageBuffer, { extractionDepth: 'detailed' })
+    const result = await extractWithVision(imageBuffer, { extractionDepth: 'basic' }) // Changed to test basic mode
     
     console.log('Extraction result:', JSON.stringify(result, null, 2))
   } catch (error) {

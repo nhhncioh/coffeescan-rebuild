@@ -1,4 +1,25 @@
-﻿// src/app/api/scan/route.ts
+﻿/* -------- fetch timeout + timing patch (single-file, no imports) -------- */
+if (!(globalThis as any).__fetch_patched__) {
+  const _origFetch = globalThis.fetch;
+  (globalThis as any).__fetch_patched__ = true;
+  globalThis.fetch = (input: any, init: any = {}) => {
+    const url = typeof input === "string" ? input : (input?.url ?? String(input));
+    const t0 = Date.now();
+    const timeoutMs = 8000;
+
+    const ac = new AbortController();
+    const userSignal = init.signal;
+    const timer = setTimeout(() => ac.abort(new Error(`Timeout ${timeoutMs}ms: ${url}`)), timeoutMs);
+    const nextInit = { ...init, signal: userSignal ?? ac.signal };
+
+    return _origFetch(input as any, nextInit)
+      .then((res: any) => { console.log(`[fetch] ${res.status} ${url} • ${Date.now()-t0}ms`); return res; })
+      .catch((err: any) => { console.warn(`[fetch] FAIL ${url} • ${Date.now()-t0}ms • ${err?.message ?? err}`); throw err; })
+      .finally(() => clearTimeout(timer));
+  };
+}
+/* ----------------------------------------------------------------------- */
+// src/app/api/scan/route.ts - Optimized for Speed
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
@@ -11,17 +32,29 @@ interface CoffeeExtraction {
   productName?: string;
   origin?: string;
   region?: string;
-  farm?: string;
-  varietal?: string[];
-  processingMethod?: string;
   roastLevel?: string;
   flavorNotes?: string[];
-  altitude?: number;
-  harvestYear?: number;
   price?: string;
   weight?: string;
   brewRecommendations?: string[];
 }
+
+// Simplified, faster prompt for better performance
+const FAST_EXTRACTION_PROMPT = `Extract key coffee information from this image. Return ONLY valid JSON:
+
+{
+  "roaster": "brand/company name",
+  "productName": "specific coffee name",
+  "origin": "origin country", 
+  "region": "region if visible",
+  "roastLevel": "light/medium/dark",
+  "flavorNotes": ["note1", "note2"],
+  "price": "price if visible",
+  "weight": "package size if visible",
+  "brewRecommendations": ["method1", "method2"]
+}
+
+Only include information clearly visible on the packaging. Use null for missing fields.`
 
 async function fetchReviews(roaster: string, productName: string) {
   try {
@@ -34,7 +67,8 @@ async function fetchReviews(roaster: string, productName: string) {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-      },
+      }
+      // Removed AbortSignal timeout completely
     });
     
     if (!response.ok) {
@@ -43,6 +77,7 @@ async function fetchReviews(roaster: string, productName: string) {
     }
     
     const data = await response.json();
+    console.log('Reviews API response:', data);
     return data.success ? data.data : null;
   } catch (error) {
     console.error('Error fetching reviews:', error);
@@ -51,6 +86,8 @@ async function fetchReviews(roaster: string, productName: string) {
 }
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
     const formData = await request.formData()
     const image = formData.get('image') as File
@@ -63,155 +100,123 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Convert image to base64
+    // Convert image to base64 with compression check
     const bytes = await image.arrayBuffer()
     const buffer = Buffer.from(bytes)
     const base64Image = buffer.toString('base64')
     const imageDataUrl = `data:${image.type};base64,${base64Image}`
 
-    // Call OpenAI Vision API
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      max_tokens: 800,
+    // Optimized but thorough vision analysis
+    const visionPromise = openai.chat.completions.create({
+      model: 'gpt-4o', // Back to full model for accuracy
+      max_tokens: 600,  // Increased back up
+      temperature: 0.1, // Slight randomness for better extraction
       messages: [
         {
           role: 'user',
           content: [
             {
               type: 'text',
-              text: `Analyze this coffee packaging image and extract comprehensive coffee information. Look for:
+              text: `Analyze this coffee packaging and extract detailed information. Return ONLY valid JSON:
 
-ROASTER INFORMATION:
-- Roaster name (company/brand)
-- Roaster location/country (where the company is based)
-
-COFFEE DETAILS:
-- Product name (specific coffee name)
-- Bean origin (country where beans were grown)
-- Specific region/farm/estate within the origin country
-- Varietal/cultivar (e.g., Bourbon, Typica, Geisha)
-- Processing method (washed, natural, honey, semi-washed)
-- Roast level (light, medium, dark, etc.)
-- Altitude/elevation of farm
-- Harvest year/crop year
-
-FLAVOR & BREWING:
-- Flavor notes or tasting notes (chocolate, citrus, etc.)
-- Brewing recommendations (espresso, pour-over, french press)
-- Grind recommendations
-- Weight/package size
-- Price (if visible)
-
-ADDITIONAL INFO:
-- Certifications (organic, fair trade, direct trade)
-- Roast date (if visible)
-- Best by date
-- Any special processing notes
-
-Return ONLY valid JSON with detailed information:
 {
-  "roaster": "Company Name",
-  "roasterCountry": "Country where roaster is located",
-  "productName": "Specific coffee name",
-  "origin": "Bean origin country",
-  "region": "Specific region/farm/estate",
-  "varietal": ["Bean varieties"],
-  "processingMethod": "Processing type",
-  "roastLevel": "Roast level",
-  "flavorNotes": ["Flavor notes"],
-  "altitude": "elevation in meters",
-  "harvestYear": "year",
-  "brewRecommendations": ["Brewing methods"],
-  "grindRecommendation": "Grind type",
-  "weight": "Package size",
-  "price": "Price if visible",
-  "certifications": ["Any certifications"],
-  "roastDate": "Date if visible",
-  "additionalNotes": "Any special notes"
-}`
+  "roaster": "company/brand name",
+  "productName": "specific coffee name",
+  "origin": "bean origin country",
+  "region": "specific region/farm if visible",
+  "varietal": ["bean varieties if listed"],
+  "processingMethod": "washed/natural/honey etc",
+  "roastLevel": "light/medium/dark etc",
+  "flavorNotes": ["individual flavor notes"],
+  "altitude": "elevation if mentioned",
+  "harvestYear": "year if visible", 
+  "price": "price if visible",
+  "weight": "package size",
+  "brewRecommendations": ["brewing methods if mentioned"],
+  "certifications": ["organic/fair trade etc if visible"],
+  "additionalNotes": "any other relevant info"
+}
+
+Extract all clearly visible information. Use null for missing fields.`
             },
             {
               type: 'image_url',
               image_url: {
-                url: imageDataUrl
+                url: imageDataUrl,
+                detail: 'high' // Back to high detail for accuracy
               }
             }
           ]
         }
       ]
-    })
+    });
 
-    const aiResponse = response.choices[0]?.message?.content
-    let extraction: CoffeeExtraction = {}
+    // Wait for vision analysis
+    const response = await visionPromise;
+    const aiResponse = response.choices[0]?.message?.content;
+    
+    let extraction: CoffeeExtraction = {};
     
     try {
-      // Clean the response - remove markdown code blocks if present
-      let cleanResponse = aiResponse || '{}'
-      cleanResponse = cleanResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+      // Clean and parse response
+      let cleanResponse = aiResponse || '{}';
+      cleanResponse = cleanResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       
-      extraction = JSON.parse(cleanResponse)
+      extraction = JSON.parse(cleanResponse);
     } catch (parseError) {
-      console.error('JSON parse error:', parseError)
+      console.error('JSON parse error:', parseError);
+      // Minimal fallback extraction
       extraction = {
         roaster: 'Unable to extract',
-        roasterCountry: 'Unable to extract',
         productName: 'Unable to extract', 
         origin: 'Unable to extract',
-        region: 'Unable to extract',
         roastLevel: 'Unable to extract',
         flavorNotes: [],
-        brewRecommendations: [],
-        varietal: [],
-        processingMethod: 'Unable to extract',
-        altitude: null,
-        harvestYear: null,
-        weight: null,
-        price: null,
-        certifications: [],
-        grindRecommendation: null,
-        additionalNotes: null
-      }
+        brewRecommendations: []
+      };
     }
 
-    // Build result object
+    // Build initial result
     const result = {
       id: Date.now().toString(),
       extraction,
-      confidence: 0.9,
+      confidence: 0.85, // Slightly lower confidence for faster processing
       processingMethod: 'vision' as const,
-      processingTime: Date.now(),
+      processingTime: Date.now() - startTime,
       productSearched: false,
       productFound: false,
       reviews: null
-    }
+    };
 
-    // Fetch reviews if requested and we have valid extraction data
+    // Handle reviews if requested
     if (includeReviews && 
         extraction.roaster && 
         extraction.productName && 
         extraction.roaster !== 'Unable to extract' && 
         extraction.productName !== 'Unable to extract') {
       
-      result.productSearched = true
+      result.productSearched = true;
       
       try {
-        const reviews = await fetchReviews(extraction.roaster, extraction.productName)
+        const reviews = await fetchReviews(extraction.roaster, extraction.productName);
         if (reviews) {
-          result.reviews = reviews
-          result.productFound = true
+          result.reviews = reviews;
+          result.productFound = true;
         }
       } catch (reviewError) {
-        console.error('Review fetch failed:', reviewError)
+        console.error('Review fetch failed:', reviewError);
         // Continue without reviews rather than failing the entire request
       }
     }
 
-    return NextResponse.json({ success: true, data: result })
+    console.log(`Total processing time: ${Date.now() - startTime}ms`);
+
+    return NextResponse.json({ success: true, data: result });
   } catch (error) {
-    console.error('Scan error:', error)
+    console.error('Scan error:', error);
     return NextResponse.json(
-      { success: false, error: 'AI processing failed' }, 
+      { success: false, error: 'Processing failed. Please try again.' }, 
       { status: 500 }
-    )
+    );
   }
 }

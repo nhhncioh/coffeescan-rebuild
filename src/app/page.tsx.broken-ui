@@ -1,0 +1,77 @@
+﻿"use client";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { useState } from "react";
+import { Camera, Star, Eye } from "lucide-react";
+
+export default function Home() {
+  const [findReviews, setFindReviews] = useState(true);
+
+  return (
+    <main className="min-h-screen bg-gradient-to-b from-amber-50 via-white to-white px-6 py-12 text-gray-800">
+      <div className="max-w-4xl mx-auto">
+        <Card className="mb-10 shadow-lg border-none bg-gradient-to-tr from-white to-amber-50">
+          <CardContent className="p-8">
+            <h1 className="text-4xl font-bold mb-2 text-gray-900">Coffee Scanner ☕</h1>
+            <p className="text-lg text-gray-600">
+              Upload a photo of your coffee bag to instantly identify the roaster, origin, flavor notes, and read reviews.
+            </p>
+          </CardContent>
+        </Card>
+
+        <section className="space-y-6">
+          <h2 className="text-2xl font-semibold">🔍 Scan Options</h2>
+
+          <div className="flex items-center gap-4">
+            <Switch
+              id="findReviews"
+              checked={findReviews}
+              onCheckedChange={setFindReviews}
+            />
+            <label htmlFor="findReviews" className="text-gray-700">
+              Find Reviews
+            </label>
+          </div>
+          <p className="text-gray-500 text-sm">
+            Enable to search customer reviews and ratings for this coffee.
+          </p>
+
+          <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center">
+            <Camera className="mx-auto text-gray-500 mb-2" size={36} />
+            <p className="text-lg font-medium">Tap to Scan</p>
+            <p className="text-sm text-gray-600">
+              Snap or drag-and-drop your coffee bag photo
+            </p>
+            <p className="text-xs text-gray-400 mt-2">JPG • PNG • WebP • Optimized for speed</p>
+          </div>
+        </section>
+
+        <section className="mt-10 space-y-4">
+          <h2 className="text-2xl font-semibold flex items-center gap-2">
+            <Eye className="text-gray-600" size={20} /> AI Vision
+          </h2>
+          <p className="text-gray-600">
+            Advanced computer vision identifies the roaster, origin, and tasting notes from your uploaded coffee bag photo.
+          </p>
+        </section>
+
+        <section className="mt-10 space-y-4">
+          <h2 className="text-2xl font-semibold flex items-center gap-2">
+            <Star className="text-yellow-500" size={20} /> Customer Reviews
+          </h2>
+          <p className="text-gray-600">
+            View real user feedback, ratings, and popular opinions about the coffee you scanned.
+          </p>
+        </section>
+
+        <div className="mt-12 text-center">
+          <Button className="bg-amber-500 hover:bg-amber-600 text-white text-lg px-8 py-4 rounded-xl shadow-md">
+            🚀 Start Scanning
+          </Button>
+        </div>
+      </div>
+    </main>
+  );
+}

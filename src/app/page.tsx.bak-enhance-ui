@@ -1,6 +1,5 @@
-﻿'use client';
-import { enhanceResultUI } from "../lib/enhance-ui";
-import { useEffect } from "react";
+﻿'use client'
+
 // src/app/page.tsx - Enhanced version with review functionality
 
 import { useState } from 'react'
@@ -255,8 +254,6 @@ export default function HomePage() {
     </div>
   )
 }
-
-
 
 
 
